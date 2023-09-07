@@ -25,13 +25,21 @@ use crate::optimizer::RuleID;
 use crate::optimizer::SExpr;
 use crate::MetadataRef;
 
-pub static DEFAULT_REWRITE_RULES: Lazy<Vec<RuleID>> = Lazy::new(|| {
+pub static FILTER_REWRITE_RULES: Lazy<Vec<RuleID>> = Lazy::new(|| {
     vec![
         RuleID::NormalizeDisjunctiveFilter,
         RuleID::NormalizeScalarFilter,
         RuleID::EliminateFilter,
         RuleID::MergeFilter,
         RuleID::MergeEvalScalar,
+    ]
+});
+
+pub static MERGE_RULES: Lazy<Vec<RuleID>> =
+    Lazy::new(|| vec![RuleID::MergeFilter, RuleID::MergeEvalScalar]);
+
+pub static FILTER_PUSH_DOWN_RULES: Lazy<Vec<RuleID>> = Lazy::new(|| {
+    vec![
         RuleID::PushDownFilterUnion,
         RuleID::PushDownFilterAggregate,
         RuleID::PushDownLimitUnion,
@@ -44,12 +52,17 @@ pub static DEFAULT_REWRITE_RULES: Lazy<Vec<RuleID>> = Lazy::new(|| {
         RuleID::PushDownFilterEvalScalar,
         RuleID::PushDownFilterJoin,
         RuleID::PushDownFilterProjectSet,
-        RuleID::FoldCountAggregate,
-        RuleID::TryApplyAggIndex,
-        RuleID::SplitAggregate,
         RuleID::PushDownFilterScan,
         RuleID::PushDownPrewhere, /* PushDownPrwhere should be after all rules except PushDownFilterScan */
         RuleID::PushDownSortScan, // PushDownSortScan should be after PushDownPrewhere
+    ]
+});
+
+pub static AGGREGATE_REWRITE_RULES: Lazy<Vec<RuleID>> = Lazy::new(|| {
+    vec![
+        RuleID::FoldCountAggregate,
+        RuleID::TryApplyAggIndex,
+        RuleID::SplitAggregate,
     ]
 });
 
@@ -76,25 +89,43 @@ impl HeuristicOptimizer {
         Ok(s_expr)
     }
 
-    pub fn optimize(&self, s_expr: SExpr, rules: &[RuleID]) -> Result<SExpr> {
-        let pre_optimized = self.pre_optimize(s_expr)?;
-        self.optimize_expression(&pre_optimized, rules)
+    // Each element of `rules_set` is (rules, is_recursive).
+    pub fn optimize(&self, s_expr: SExpr, rules_set: &[(&[RuleID], bool)]) -> Result<SExpr> {
+        let mut s_expr = self.pre_optimize(s_expr)?;
+        for rules in rules_set.iter() {
+            s_expr = self.optimize_expression(&s_expr, rules.0, rules.1)?;
+        }
+        Ok(s_expr)
     }
 
-    pub fn optimize_expression(&self, s_expr: &SExpr, rules: &[RuleID]) -> Result<SExpr> {
+    pub fn optimize_expression(
+        &self,
+        s_expr: &SExpr,
+        rules: &[RuleID],
+        is_recursive: bool,
+    ) -> Result<SExpr> {
         let mut optimized_children = Vec::with_capacity(s_expr.arity());
         for expr in s_expr.children() {
-            optimized_children.push(Arc::new(self.optimize_expression(expr, rules)?));
+            optimized_children.push(Arc::new(self.optimize_expression(
+                expr,
+                rules,
+                is_recursive,
+            )?));
         }
         let optimized_expr = s_expr.replace_children(optimized_children);
-        let result = self.apply_transform_rules(&optimized_expr, rules)?;
+        let result = self.apply_transform_rules(&optimized_expr, rules, is_recursive)?;
 
         Ok(result)
     }
 
     /// Try to apply the rules to the expression.
     /// Return the final result that no rule can be applied.
-    fn apply_transform_rules(&self, s_expr: &SExpr, rules: &[RuleID]) -> Result<SExpr> {
+    fn apply_transform_rules(
+        &self,
+        s_expr: &SExpr,
+        rules: &[RuleID],
+        is_recursive: bool,
+    ) -> Result<SExpr> {
         let mut s_expr = s_expr.clone();
 
         for rule_id in rules {
@@ -110,10 +141,13 @@ impl HeuristicOptimizer {
                 s_expr.set_applied_rule(&rule.id());
                 rule.apply(&s_expr, &mut state)?;
                 if !state.results().is_empty() {
-                    // Recursive optimize the result
                     let result = &state.results()[0];
-                    let optimized_result = self.optimize_expression(result, rules)?;
-                    return Ok(optimized_result);
+                    if is_recursive {
+                        // Recursive optimize the result
+                        return self.optimize_expression(result, rules, is_recursive);
+                    } else {
+                        return Ok(result.clone());
+                    }
                 }
             }
         }

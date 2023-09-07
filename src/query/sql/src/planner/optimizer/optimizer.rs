@@ -32,7 +32,10 @@ use crate::optimizer::util::contains_local_table_scan;
 use crate::optimizer::HeuristicOptimizer;
 use crate::optimizer::RuleID;
 use crate::optimizer::SExpr;
-use crate::optimizer::DEFAULT_REWRITE_RULES;
+use crate::optimizer::AGGREGATE_REWRITE_RULES;
+use crate::optimizer::FILTER_PUSH_DOWN_RULES;
+use crate::optimizer::FILTER_REWRITE_RULES;
+use crate::optimizer::MERGE_RULES;
 use crate::optimizer::RESIDUAL_RULES;
 use crate::plans::CopyPlan;
 use crate::plans::Plan;
@@ -150,8 +153,12 @@ pub fn optimize_query(
     let contains_local_table_scan = contains_local_table_scan(&s_expr, &metadata);
 
     let heuristic = HeuristicOptimizer::new(ctx.get_function_context()?, metadata.clone());
-    let mut result = heuristic.pre_optimize(s_expr)?;
-    result = heuristic.optimize_expression(&result, &DEFAULT_REWRITE_RULES)?;
+    let mut result = heuristic.optimize(s_expr, &[
+        (&FILTER_REWRITE_RULES, false),
+        (&MERGE_RULES, true),
+        (&FILTER_PUSH_DOWN_RULES, true),
+        (&AGGREGATE_REWRITE_RULES, false),
+    ])?;
     let mut dphyp_optimized = false;
     if ctx.get_settings().get_enable_dphyp()? && !ctx.get_settings().get_disable_join_reorder()? {
         let (dp_res, optimized) =
@@ -178,9 +185,9 @@ pub fn optimize_query(
         result = optimize_distributed_query(ctx.clone(), &result)?;
     }
     if ctx.get_settings().get_disable_join_reorder()? {
-        return heuristic.optimize_expression(&result, &[RuleID::EliminateEvalScalar]);
+        return heuristic.optimize_expression(&result, &[RuleID::EliminateEvalScalar], false);
     }
-    heuristic.optimize_expression(&result, &RESIDUAL_RULES)
+    heuristic.optimize_expression(&result, &RESIDUAL_RULES, false)
 }
 
 // TODO(leiysky): reuse the optimization logic with `optimize_query`
@@ -190,7 +197,12 @@ fn get_optimized_memo(
     metadata: MetadataRef,
 ) -> Result<(Memo, HashMap<IndexType, CostContext>)> {
     let heuristic = HeuristicOptimizer::new(ctx.get_function_context()?, metadata.clone());
-    let result = heuristic.optimize(s_expr, &DEFAULT_REWRITE_RULES)?;
+    let result = heuristic.optimize(s_expr, &[
+        (&FILTER_REWRITE_RULES, false),
+        (&MERGE_RULES, true),
+        (&FILTER_PUSH_DOWN_RULES, true),
+        (&AGGREGATE_REWRITE_RULES, false),
+    ])?;
 
     let mut cascades = CascadesOptimizer::create(ctx, metadata, false)?;
     cascades.optimize(result)?;

@@ -39,7 +39,10 @@ use common_sql::optimizer::CascadesOptimizer;
 use common_sql::optimizer::DPhpy;
 use common_sql::optimizer::HeuristicOptimizer;
 use common_sql::optimizer::SExpr;
-use common_sql::optimizer::DEFAULT_REWRITE_RULES;
+use common_sql::optimizer::AGGREGATE_REWRITE_RULES;
+use common_sql::optimizer::FILTER_PUSH_DOWN_RULES;
+use common_sql::optimizer::FILTER_REWRITE_RULES;
+use common_sql::optimizer::MERGE_RULES;
 use common_sql::optimizer::RESIDUAL_RULES;
 use common_sql::plans::BoundColumnRef;
 use common_sql::plans::ConstantExpr;
@@ -335,7 +338,12 @@ pub async fn subquery_filter(
     bind_context.add_column_binding(row_id_column_binding.clone());
 
     let heuristic = HeuristicOptimizer::new(ctx.get_function_context()?, metadata.clone());
-    let mut expr = heuristic.optimize(expr, &DEFAULT_REWRITE_RULES)?;
+    let mut expr = heuristic.optimize(expr, &[
+        (&FILTER_REWRITE_RULES, false),
+        (&MERGE_RULES, true),
+        (&FILTER_PUSH_DOWN_RULES, true),
+        (&AGGREGATE_REWRITE_RULES, false),
+    ])?;
     let mut dphyp_optimized = false;
     if ctx.get_settings().get_enable_dphyp()? {
         let (dp_res, optimized) =
@@ -347,7 +355,7 @@ pub async fn subquery_filter(
     }
     let mut cascades = CascadesOptimizer::create(ctx.clone(), metadata.clone(), dphyp_optimized)?;
     expr = cascades.optimize(expr)?;
-    expr = heuristic.optimize(expr, &RESIDUAL_RULES)?;
+    expr = heuristic.optimize_expression(&expr, &RESIDUAL_RULES, false)?;
 
     // Create `input_expr` pipeline and execute it to get `_row_id` data block.
     let select_interpreter = SelectInterpreter::try_create(

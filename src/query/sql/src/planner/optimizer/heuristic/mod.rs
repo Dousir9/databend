@@ -18,6 +18,9 @@ mod heuristic;
 mod subquery_rewriter;
 
 pub use heuristic::HeuristicOptimizer;
-pub use heuristic::DEFAULT_REWRITE_RULES;
+pub use heuristic::AGGREGATE_REWRITE_RULES;
+pub use heuristic::FILTER_PUSH_DOWN_RULES;
+pub use heuristic::FILTER_REWRITE_RULES;
+pub use heuristic::MERGE_RULES;
 pub use heuristic::RESIDUAL_RULES;
 pub use subquery_rewriter::SubqueryRewriter;
