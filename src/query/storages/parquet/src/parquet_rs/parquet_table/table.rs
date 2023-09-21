@@ -33,6 +33,7 @@ use common_catalog::plan::PushDownInfo;
 use common_catalog::table::column_stats_provider_impls::DummyColumnStatisticsProvider;
 use common_catalog::table::ColumnStatisticsProvider;
 use common_catalog::table::Table;
+use common_catalog::table::TableStatistics;
 use common_catalog::table_context::TableContext;
 use common_exception::ErrorCode;
 use common_exception::Result;
@@ -200,6 +201,18 @@ impl Table for ParquetRSTable {
 
     fn has_exact_total_row_count(&self) -> bool {
         true
+    }
+
+    fn table_statistics(&self) -> Result<Option<TableStatistics>> {
+        let s = &self.table_info.meta.statistics;
+        Ok(Some(TableStatistics {
+            num_rows: Some(s.number_of_rows),
+            data_size: Some(s.data_bytes),
+            data_size_compressed: Some(s.compressed_data_bytes),
+            index_size: Some(s.index_data_bytes),
+            number_of_blocks: s.number_of_blocks,
+            number_of_segments: s.number_of_segments,
+        }))
     }
 
     fn get_data_source_info(&self) -> DataSourceInfo {
