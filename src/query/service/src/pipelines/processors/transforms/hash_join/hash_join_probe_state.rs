@@ -247,7 +247,8 @@ impl HashJoinProbeState {
                 let (keys_iter, mut hashes) =
                     table.hash_method.build_keys_iter_and_hashes(&keys_state)?;
                 // Using hashes to probe hash table and converting them in-place to pointers for memory reuse.
-                table.hash_table.probe(&mut hashes);
+                probe_state.early += table.hash_table.probe(&mut hashes);
+                probe_state.sum += hashes.len() as u64;
                 self.result_blocks(
                     &table.hash_table,
                     probe_state,

@@ -369,7 +369,7 @@ pub trait HashJoinHashtableLike {
     type Key: ?Sized;
 
     // Using hashes to probe hash table and converting them in-place to pointers for memory reuse.
-    fn probe(&self, hashes: &mut [u64]);
+    fn probe(&self, hashes: &mut [u64]) -> u64;
 
     fn next_contains(&self, key: &Self::Key, ptr: u64) -> bool;
 

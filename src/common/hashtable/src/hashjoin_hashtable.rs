@@ -79,7 +79,6 @@ pub fn remove_header_tag(old_header: u64) -> u64 {
 pub fn early_filtering(header: u64, hash: u64) -> bool {
     ((header >> POINTER_BITS_SIZE) & (1 << (hash & TAG_BITS_SIZE_MASK))) != 0
 }
-
 pub struct HashJoinHashTable<K: Keyable, A: Allocator + Clone = MmapAllocator> {
     pub(crate) pointers: Box<[u64], A>,
     pub(crate) atomic_pointers: *mut AtomicU64,
@@ -141,15 +140,22 @@ where
     type Key = K;
 
     // Using hashes to probe hash table and converting them in-place to pointers for memory reuse.
-    fn probe(&self, hashes: &mut [u64]) {
+    fn probe(&self, hashes: &mut [u64]) -> u64 {
+        let mut sum = 0;
         hashes.iter_mut().for_each(|hash| {
             let header = self.pointers[(*hash >> self.hash_shift) as usize];
-            *hash = if early_filtering(header, *hash) {
-                remove_header_tag(header)
+            *hash = if header != 0 {
+                if early_filtering(header, *hash) {
+                    remove_header_tag(header)
+                } else {
+                    sum += 1;
+                    0
+                }
             } else {
                 0
             };
         });
+        sum
     }
 
     fn next_contains(&self, key: &Self::Key, mut ptr: u64) -> bool {

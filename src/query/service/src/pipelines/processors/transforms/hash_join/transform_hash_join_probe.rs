@@ -195,6 +195,7 @@ impl TransformHashJoinProbe {
         }
 
         if self.input_port.is_finished() {
+            println!("filter: {} / {}, {}%", self.probe_state.early, self.probe_state.sum, self.probe_state.early as f64 / self.probe_state.sum as f64);
             return if self.join_probe_state.hash_join_state.need_outer_scan()
                 || self.join_probe_state.hash_join_state.need_mark_scan()
             {

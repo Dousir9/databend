@@ -92,15 +92,22 @@ where A: Allocator + Clone + 'static
     type Key = [u8];
 
     // Using hashes to probe hash table and converting them in-place to pointers for memory reuse.
-    fn probe(&self, hashes: &mut [u64]) {
+    fn probe(&self, hashes: &mut [u64]) -> u64 {
+        let mut sum = 0;
         hashes.iter_mut().for_each(|hash| {
             let header = self.pointers[(*hash >> self.hash_shift) as usize];
-            *hash = if early_filtering(header, *hash) {
-                remove_header_tag(header)
+            *hash = if header != 0 {
+                if early_filtering(header, *hash) {
+                    remove_header_tag(header)
+                } else {
+                    sum += 1;
+                    0
+                }
             } else {
                 0
             };
         });
+        sum
     }
 
     fn next_contains(&self, key: &Self::Key, mut ptr: u64) -> bool {

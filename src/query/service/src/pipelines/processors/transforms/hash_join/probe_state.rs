@@ -37,6 +37,8 @@ pub struct ProbeState {
     pub(crate) probe_unmatched_indexes: Option<Vec<u32>>,
     pub(crate) markers: Option<Vec<u8>>,
     pub(crate) string_items_buf: Option<Vec<(u64, usize)>>,
+    pub(crate) early: u64,
+    pub(crate) sum: u64,
 }
 
 impl ProbeState {
@@ -98,6 +100,8 @@ impl ProbeState {
             probe_unmatched_indexes,
             markers,
             string_items_buf,
+            early: 0,
+            sum: 0,
         }
     }
 
