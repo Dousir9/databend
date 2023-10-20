@@ -79,6 +79,13 @@ pub fn remove_header_tag(old_header: u64) -> u64 {
 pub fn early_filtering(header: u64, hash: u64) -> bool {
     ((header >> POINTER_BITS_SIZE) & (1 << ((hash >> 16) & TAG_BITS_SIZE_MASK))) != 0
 }
+
+#[inline(always)]
+pub fn hash_bits() -> u32 {
+    cfg_if::cfg_if! {
+        if #[cfg(target_feature = "sse4.2")] { 32 } else { 64 }
+    }
+}
 pub struct HashJoinHashTable<K: Keyable, A: Allocator + Clone = MmapAllocator> {
     pub(crate) pointers: Box<[u64], A>,
     pub(crate) atomic_pointers: *mut AtomicU64,
@@ -98,7 +105,7 @@ impl<K: Keyable, A: Allocator + Clone + Default> HashJoinHashTable<K, A> {
                 Box::new_zeroed_slice_in(capacity, Default::default()).assume_init()
             },
             atomic_pointers: std::ptr::null_mut(),
-            hash_shift: (64 - capacity.trailing_zeros()) as usize,
+            hash_shift: (hash_bits() - capacity.trailing_zeros()) as usize,
             phantom: PhantomData,
         };
         hashtable.atomic_pointers = unsafe {

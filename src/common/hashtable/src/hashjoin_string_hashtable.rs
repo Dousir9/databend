@@ -17,7 +17,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 
 use common_base::mem_allocator::MmapAllocator;
-
+use crate::hashjoin_hashtable::hash_bits;
 use super::traits::HashJoinHashtableLike;
 use crate::hashjoin_hashtable::combine_header;
 use crate::hashjoin_hashtable::early_filtering;
@@ -53,7 +53,7 @@ impl<A: Allocator + Clone + Default> HashJoinStringHashTable<A> {
                 Box::new_zeroed_slice_in(capacity, Default::default()).assume_init()
             },
             atomic_pointers: std::ptr::null_mut(),
-            hash_shift: (64 - capacity.trailing_zeros()) as usize,
+            hash_shift: (hash_bits() - capacity.trailing_zeros()) as usize,
         };
         hashtable.atomic_pointers = unsafe {
             std::mem::transmute::<*mut u64, *mut AtomicU64>(hashtable.pointers.as_mut_ptr())
