@@ -57,7 +57,7 @@ pub const TAG_MASK: u64 = !POINTER_MASK;
 
 #[inline(always)]
 pub fn tag(hash: u64) -> u64 {
-    1 << (POINTER_BITS_SIZE + (hash & TAG_BITS_SIZE_MASK))
+    1 << (POINTER_BITS_SIZE + ((hash >> 16) & TAG_BITS_SIZE_MASK))
 }
 
 #[inline(always)]
@@ -77,7 +77,7 @@ pub fn remove_header_tag(old_header: u64) -> u64 {
 
 #[inline(always)]
 pub fn early_filtering(header: u64, hash: u64) -> bool {
-    ((header >> POINTER_BITS_SIZE) & (1 << (hash & TAG_BITS_SIZE_MASK))) != 0
+    ((header >> POINTER_BITS_SIZE) & (1 << ((hash >> 16) & TAG_BITS_SIZE_MASK))) != 0
 }
 pub struct HashJoinHashTable<K: Keyable, A: Allocator + Clone = MmapAllocator> {
     pub(crate) pointers: Box<[u64], A>,
