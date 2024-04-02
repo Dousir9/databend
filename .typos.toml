@@ -19,6 +19,6 @@ extend-exclude = [
     "benchmark/",
     "tests/",
     "src/meta",
-    "src/query",
+    "src/query/functions",
     "src/binaries",
 ]
